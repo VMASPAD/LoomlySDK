@@ -213,6 +213,22 @@ export default function Toolbar({
                     />
                     <span className="text-sm">Snappable</span>
                 </label>
+                
+                <label className="flex items-center space-x-2">
+                    <Switch 
+                        checked={moveableSettings.clippable}
+                        onCheckedChange={(checked) => onUpdateMoveableSetting('clippable', checked)}
+                    />
+                    <span className="text-sm">Clippable</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                    <Switch 
+                        checked={moveableSettings.warpable}
+                        onCheckedChange={(checked) => onUpdateMoveableSetting('warpable', checked)}
+                    />
+                    <span className="text-sm">Warpable</span>
+                </label>
+
                 <label className="flex items-center space-x-2">
                     <Switch 
                         checked={showGrid}

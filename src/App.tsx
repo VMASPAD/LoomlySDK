@@ -9,11 +9,9 @@ function App() {
   const [currentRoute, setCurrentRoute] = useState<string>('')
 
   useEffect(() => {
-    // Detectar ruta actual
     const path = window.location.pathname;
     setCurrentRoute(path);
     
-    // Escuchar cambios de URL
     const handlePopState = () => {
       setCurrentRoute(window.location.pathname);
     };
@@ -22,7 +20,6 @@ function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Routing simple
   if (currentRoute === '/render') {
     return <RenderPage />;
   }

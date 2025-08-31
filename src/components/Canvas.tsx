@@ -112,7 +112,7 @@ const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
                              customRotation: true,
                         }}
                                     rotationTarget={".moveable-custom-rotation"}
-         rotationPosition={"none"}
+                        rotationPosition={"none"}
                         ables={[CustomRotation]}
                         /* Core Features */
                         draggable={moveableSettings.draggable}
