@@ -173,7 +173,7 @@ export class CanvasComponentUtils {
         components.forEach(comp => {
             ComponentRegistry.updateComponentPosition(comp.id);
         });
-        console.log(`📍 Posiciones actualizadas para ${components.length} componentes`);
+        console.log(`📍 Positions updated for ${components.length} components`);
     }
     
     /**

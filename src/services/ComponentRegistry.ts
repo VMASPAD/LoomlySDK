@@ -63,7 +63,7 @@ export class ComponentRegistry {
         data.element.setAttribute('data-react-component', data.name);
         data.element.setAttribute('data-component-id', data.id);
         
-        console.log(`✅ Componente registrado: ${data.name} (${data.id})`, componentData);
+        console.log(`✅ Component registered: ${data.name} (${data.id})`, componentData);
     }
     
     /**
@@ -114,7 +114,7 @@ export class ComponentRegistry {
             componentData.element.removeAttribute('data-react-component');
             componentData.element.removeAttribute('data-component-id');
             this.components.delete(id);
-            console.log(`🗑️ Componente eliminado: ${componentData.name} (${id})`);
+            console.log(`🗑️ Component removed: ${componentData.name} (${id})`);
         }
     }
     
@@ -127,7 +127,7 @@ export class ComponentRegistry {
             data.element.removeAttribute('data-component-id');
         });
         this.components.clear();
-        console.log('🧹 Todos los componentes eliminados del registro');
+        console.log('🧹 All components removed from registry');
     }
     
     /**

@@ -10,7 +10,10 @@ import {
     Eye,
     EyeOff,
     X,
-    Download
+    Download,
+    Save,
+    RotateCcw,
+    FolderOpen
 } from 'lucide-react';
 
 interface MoveableSettings {
@@ -49,6 +52,11 @@ interface ToolbarProps {
     showGrid: boolean;
     onToggleGrid: (show: boolean) => void;
     isMultiSelect: boolean;
+    onSaveProject?: () => void;
+    onClearData?: () => void;
+    onLoadData?: () => void;
+    lastSaveTime?: Date | null;
+    hasUnsavedChanges?: boolean;
     onToggleMultiSelect: (enabled: boolean) => void;
     selectedElement: any;
     hasSelection: boolean;
@@ -74,7 +82,12 @@ export default function Toolbar({
     onToggleMultiSelect,
     selectedElement,
     hasSelection,
-    selectedTargets
+    selectedTargets,
+    onSaveProject,
+    onClearData,
+    onLoadData,
+    lastSaveTime,
+    hasUnsavedChanges
 }: ToolbarProps) {
     return (
         <div className="bg-white border-b border-gray-200 p-4">
@@ -141,6 +154,37 @@ export default function Toolbar({
                     <X className="w-4 h-4 mr-1" />
                     Deselect
                 </Button>
+                
+                {/* Save System Buttons */}
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onSaveProject}
+                    className={`${hasUnsavedChanges ? 'bg-green-50 hover:bg-green-100 border-green-300' : 'bg-gray-50'}`}
+                    title={lastSaveTime ? `Last saved: ${lastSaveTime.toLocaleTimeString()}` : 'No saves yet'}
+                >
+                    <Save className="w-4 h-4 mr-1" />
+                    Save {hasUnsavedChanges ? '*' : ''}
+                </Button>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onClearData}
+                    className="bg-red-50 hover:bg-red-100 border-red-300 text-red-700"
+                >
+                    <RotateCcw className="w-4 h-4 mr-1" />
+                    Clear Data
+                </Button>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onLoadData}
+                    className="bg-blue-50 hover:bg-blue-100 border-blue-300 text-blue-700"
+                >
+                    <FolderOpen className="w-4 h-4 mr-1" />
+                    Load Data
+                </Button>
+                
                 <Button
                     variant="outline"
                     size="sm"

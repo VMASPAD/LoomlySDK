@@ -12,6 +12,8 @@ An advanced visual canvas editor built with React, TypeScript, and Moveable.js t
 - **Moveable System**: Drag, resize, rotate, and scale elements with precision
 - **Multi-selection**: Select and manipulate multiple elements simultaneously
 - **Layers (Z-Index)**: Complete depth control, including negative values
+- **Image Upload**: Drag & drop image support with automatic canvas integration
+- **LocalStorage Save System**: Comprehensive project persistence with auto-save
 
 ### 🧩 Supported Element Types
 
@@ -25,6 +27,11 @@ An advanced visual canvas editor built with React, TypeScript, and Moveable.js t
 - **Rectangles**: With customizable rounded corners
 - **Circles**: Perfect circular shapes
 - **Custom Elements**: Easy extension for new shapes
+
+#### Images
+- **Upload Support**: Drag & drop any image format
+- **Auto Integration**: Images become moveable canvas elements
+- **Base64 Storage**: Images saved locally for offline availability
 
 #### React Components
 - **🔮 Prism Background**: Animated prism effect
@@ -48,6 +55,13 @@ An advanced visual canvas editor built with React, TypeScript, and Moveable.js t
 - **Delete**: Remove selected elements
 - **Lock/Unlock**: Protect elements from modifications
 - **Show/Hide**: Toggle visibility without deletion
+
+#### 💾 Save System
+- **Auto-Save**: Automatic saves every 5 minutes
+- **Manual Save**: One-click project saving with status indicators
+- **Project Restoration**: Automatic loading on app startup
+- **Image Persistence**: All uploaded images saved locally
+- **Data Management**: Clear saved data with confirmation protection
 
 #### Layer Management
 - **Move Layers Up/Down**: Granular Z-order control
@@ -222,6 +236,10 @@ src/render/
     ├── Preserved HTML        # Static content
     └── Positioned components # React components
 ```
+
+## 📚 Additional Documentation
+
+- **[Save System Documentation](SAVE_SYSTEM.md)**: Comprehensive guide to the localStorage-based project persistence system, including technical details, usage instructions, and troubleshooting.
 
 ## 🤝 Contributing
 

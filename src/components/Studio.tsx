@@ -415,14 +415,14 @@ export default function Studio({ getData, setGetData, styles, setStyles }: {
                 props: defaultProps
             });
             
-            console.log(`✅ [STUDIO] Componente React registrado: ${elementName}`, { 
+            console.log(`✅ [STUDIO] React component registered: ${elementName}`, { 
                 id, 
                 position: { x, y },
                 size: defaultSize,
                 props: defaultProps
             });
         } catch (error) {
-            console.error('❌ [STUDIO] Error registrando componente React:', error);
+            console.error('❌ [STUDIO] Error registering React component:', error);
         }
 
         const elementData: ElementData = {
@@ -442,6 +442,50 @@ export default function Studio({ getData, setGetData, styles, setStyles }: {
         setNextZIndex(prev => prev + 1);
         updateCurrentStyles(element);
     };
+
+    // Image element creation function
+    const addImageElement = useCallback((imageData: string, fileName: string) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const elementId = `element_${Date.now()}`;
+        
+        // Create image element
+        const element = document.createElement('div');
+        element.id = elementId;
+        element.className = 'moveable-element target absolute';
+        element.setAttribute('data-element-id', elementId);
+        
+        const img = document.createElement('img');
+        img.src = imageData;
+        img.style.cssText = 'width: 100%; height: 100%; object-fit: contain; pointer-events: none;';
+        element.appendChild(img);
+        
+        const currentZIndex = nextZIndex;
+        const baseStyles = `position: absolute; cursor: move; user-select: none; width: 200px; height: 200px; z-index: ${currentZIndex}; left: ${50 + Math.random() * 200}px; top: ${50 + Math.random() * 200}px;`;
+        element.style.cssText = baseStyles;
+        
+        canvas.appendChild(element);
+
+        const elementData: ElementData = {
+            id: elementId,
+            type: 'div' as any,
+            element,
+            isLocked: false,
+            isVisible: true,
+            zIndex: currentZIndex,
+            name: `Image: ${fileName}`
+        };
+
+        setElements(prev => [...prev, elementData]);
+        setTarget(element);
+        setSelectedElement(elementData);
+        setSelectedTargets([element]);
+        setNextZIndex(prev => prev + 1);
+        updateCurrentStyles(element);
+        
+        console.log('🖼️ Image element added:', fileName);
+    }, [nextZIndex, updateCurrentStyles]);
     
     // Multi-selection actions
     const deleteSelectedElements = () => {
@@ -641,7 +685,7 @@ export default function Studio({ getData, setGetData, styles, setStyles }: {
 
     const exportToPNG = async () => {
         try {
-            console.log('🚀 Iniciando sistema automatizado de exportación...');
+            console.log('🚀 Starting automated export system...');
             
             // Preparar canvas
             const canvasElement = canvasRef.current;
@@ -659,26 +703,26 @@ export default function Studio({ getData, setGetData, styles, setStyles }: {
             await new Promise(resolve => setTimeout(resolve, 100));
 
             // Paso 1: Extraer HTML literal del canvas
-            console.log('📄 Paso 1: Extrayendo HTML del canvas...');
+            console.log('📄 Step 1: Extracting HTML from canvas...');
             const { CanvasExtractor } = await import('../services/CanvasExtractor');
             const canvasExtractor = new CanvasExtractor('canvas');
             const snapshot = canvasExtractor.createSnapshot();
             
-            console.log('✅ HTML extraído:', {
+            console.log('✅ HTML extracted:', {
                 htmlLength: snapshot.htmlContent.length,
                 componentsCount: snapshot.reactComponents.length,
                 stylesLength: snapshot.styles.length
             });
 
             // Paso 2: Generar componente React automáticamente
-            console.log('⚛️ Paso 2: Generando componente React...');
+            console.log('⚛️ Step 2: Generating React component...');
             const { ComponentGenerator } = await import('../services/ComponentGenerator');
             await ComponentGenerator.saveComponent(snapshot);
             
-            console.log('✅ Componente generado en: render/ComponentRendered.tsx');
+            console.log('✅ Component generated at: render/ComponentRendered.tsx');
 
             // Paso 3: Capturar screenshot real del navegador Chrome
-            console.log('📸 Paso 3: Capturando screenshot con Chrome...');
+            console.log('📸 Step 3: Capturing screenshot with Chrome...');
             const screenshotResponse = await fetch('http://localhost:3001/api/capture-screenshot', {
                 method: 'POST',
                 headers: {
@@ -712,9 +756,9 @@ export default function Studio({ getData, setGetData, styles, setStyles }: {
             
             URL.revokeObjectURL(url);
             
-            console.log('🎉 Exportación automatizada completada exitosamente!');
-            console.log('📁 Componente guardado en: render/ComponentRendered.tsx');
-            console.log('🖼️ Screenshot descargado desde Chrome real');
+            console.log('🎉 Automated export completed successfully!');
+            console.log('📁 Component saved at: render/ComponentRendered.tsx');
+            console.log('🖼️ Screenshot downloaded from real Chrome');
 
             // Restore selection state
             setTimeout(() => {
@@ -725,10 +769,137 @@ export default function Studio({ getData, setGetData, styles, setStyles }: {
             }, 200);
             
         } catch (error) {
-            console.error('❌ Error en exportación automatizada:', error);
+            console.error('❌ Error in automated export:', error);
             alert(`Export failed: ${error instanceof Error ? error.message : String(error)}\n\nAsegúrate de que el servidor backend esté corriendo en puerto 3001`);
         }
     };
+
+    // Load data from localStorage function
+    const loadFromLocalStorage = useCallback(() => {
+        try {
+            const savedData = localStorage.getItem('studioCanvasData');
+            if (!savedData) {
+                alert('No saved data found in localStorage');
+                return;
+            }
+
+            const data = JSON.parse(savedData);
+            console.log('📂 Loading data from localStorage:', data);
+
+            // Clear current canvas
+            const canvas = canvasRef.current;
+            if (!canvas) {
+                console.error('Canvas not found');
+                return;
+            }
+
+            // Clear existing elements
+            canvas.innerHTML = '';
+            setElements([]);
+            setTarget(null);
+            setSelectedElement(null);
+            setSelectedTargets([]);
+
+            // Restore canvas settings
+            if (data.canvasSize) {
+                setCanvasWidth(data.canvasSize.width);
+                setCanvasHeight(data.canvasSize.height);
+            }
+            if (data.zoom) {
+                setZoom(data.zoom);
+            }
+
+            // Recreate elements from saved data
+            if (data.elements && Array.isArray(data.elements)) {
+                const newElements: ElementData[] = [];
+                let maxZIndex = 0;
+
+                data.elements.forEach((elementData: any, index: number) => {
+                    const element = document.createElement('div');
+                    element.id = elementData.id || `element_${Date.now()}_${index}`;
+                    element.className = 'moveable-element target absolute';
+                    element.setAttribute('data-element-id', element.id);
+
+                    // Apply position and transform
+                    element.style.position = 'absolute';
+                    element.style.cursor = 'move';
+                    element.style.userSelect = 'none';
+                    element.style.left = `${elementData.x || 0}px`;
+                    element.style.top = `${elementData.y || 0}px`;
+                    element.style.width = `${elementData.width || 100}px`;
+                    element.style.height = `${elementData.height || 100}px`;
+                    element.style.transform = elementData.transform || '';
+                    element.style.zIndex = elementData.zIndex?.toString() || '1';
+
+                    // Apply styles
+                    if (elementData.backgroundColor) element.style.backgroundColor = elementData.backgroundColor;
+                    if (elementData.borderRadius) element.style.borderRadius = elementData.borderRadius;
+                    if (elementData.border) element.style.border = elementData.border;
+                    if (elementData.boxShadow) element.style.boxShadow = elementData.boxShadow;
+                    if (elementData.opacity) element.style.opacity = elementData.opacity;
+
+                    // Set content based on type
+                    if (elementData.type === 'text' || elementData.type === 'p' || elementData.type === 'h1') {
+                        element.textContent = elementData.content || 'Text Element';
+                        element.contentEditable = 'true';
+                        
+                        if (elementData.fontFamily) element.style.fontFamily = elementData.fontFamily;
+                        if (elementData.fontSize) element.style.fontSize = `${elementData.fontSize}px`;
+                        if (elementData.fontWeight) element.style.fontWeight = elementData.fontWeight;
+                        if (elementData.color) element.style.color = elementData.color;
+                        if (elementData.textAlign) element.style.textAlign = elementData.textAlign;
+                    } else if (elementData.type === 'rectangle') {
+                        element.style.backgroundColor = elementData.backgroundColor || '#3b82f6';
+                        element.style.borderRadius = elementData.borderRadius || '4px';
+                    } else if (elementData.type === 'circle') {
+                        element.style.backgroundColor = elementData.backgroundColor || '#ef4444';
+                        element.style.borderRadius = '50%';
+                    } else if (elementData.type === 'div') {
+                        // Check if this is an image element
+                        if (elementData.name && elementData.name.startsWith('Image:')) {
+                            // Try to recreate image if we have the source
+                            const img = document.createElement('img');
+                            img.style.cssText = 'width: 100%; height: 100%; object-fit: contain; pointer-events: none;';
+                            // Note: We can't restore the image source from localStorage without the base64 data
+                            img.alt = 'Restored Image';
+                            element.appendChild(img);
+                        } else {
+                            element.textContent = 'DIV';
+                            element.style.backgroundColor = elementData.backgroundColor || 'rgba(59, 130, 246, 0.3)';
+                            element.style.display = 'flex';
+                            element.style.alignItems = 'center';
+                            element.style.justifyContent = 'center';
+                        }
+                    }
+
+                    canvas.appendChild(element);
+
+                    const elementInfo: ElementData = {
+                        id: element.id,
+                        type: elementData.type || 'div',
+                        element: element,
+                        isLocked: elementData.isLocked || false,
+                        isVisible: elementData.isVisible !== false,
+                        zIndex: elementData.zIndex || (index + 1),
+                        name: elementData.name || `Element ${index + 1}`
+                    };
+
+                    newElements.push(elementInfo);
+                    maxZIndex = Math.max(maxZIndex, elementInfo.zIndex);
+                });
+
+                setElements(newElements);
+                setNextZIndex(maxZIndex + 1);
+                console.log(`✅ ${newElements.length} elements loaded from localStorage`);
+            }
+
+            console.log('🎉 Data loaded successfully from localStorage');
+            
+        } catch (error) {
+            console.error('❌ Error loading data from localStorage:', error);
+            alert('Error loading saved data');
+        }
+    }, []);
 
     // Helper function to render individual elements to canvas (simulating headless Chrome behavior)
     // Moveable setting toggles
@@ -775,6 +946,7 @@ export default function Studio({ getData, setGetData, styles, setStyles }: {
                                 onMoveLayerDown={moveLayerDown}
                                 addReactElement={addReactElement}
                                 onToggleVisibility={toggleElementVisibilityById}
+                                onImageAdd={addImageElement}
                             />
                         </div>
                     </ResizablePanel>
@@ -804,6 +976,7 @@ export default function Studio({ getData, setGetData, styles, setStyles }: {
                                 selectedElement={selectedElement}
                                 hasSelection={!!selectedElement || selectedTargets.length > 0}
                                 selectedTargets={selectedTargets}
+                                onLoadData={loadFromLocalStorage}
                             />
 
                             <Canvas

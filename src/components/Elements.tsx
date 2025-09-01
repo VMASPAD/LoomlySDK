@@ -9,6 +9,7 @@ import { Circle, Square } from 'lucide-react';
 import Layers from './Layers';
 import type { ComponentType } from "react";
 import { getComponentsByCategory } from '@/config/ComponentsConfig';
+import ImageUploader from './ImageUploader';
 
 interface ElementData {
   id: string;
@@ -28,6 +29,7 @@ interface ElementsPanelProps {
   onMoveLayerDown: (elementId: string) => void;
   addReactElement: (component: ComponentType<any>, componentName?: string) => void;
   onToggleVisibility?: (elementId: string) => void;
+  onImageAdd?: (imageData: string, fileName: string) => void;
 }
 
 function ElementsPanel({ 
@@ -37,7 +39,8 @@ function ElementsPanel({
   onMoveLayerUp, 
   onMoveLayerDown,
   addReactElement,
-  onToggleVisibility
+  onToggleVisibility,
+  onImageAdd
 }: ElementsPanelProps) {
   // Obtener componentes disponibles desde la configuración
   const backgroundComponents = getComponentsByCategory('backgrounds');
@@ -81,6 +84,16 @@ function ElementsPanel({
           <Button onClick={() => onAddElement("text")} variant="outline" size="sm" className="w-full justify-start">
             📄 Text
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Image Upload */}
+      <Card className="mb-4">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Images</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {onImageAdd && <ImageUploader onImageAdd={onImageAdd} />}
         </CardContent>
       </Card>
       

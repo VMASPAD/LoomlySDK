@@ -86,7 +86,7 @@ export class CanvasExtractor {
         const registeredComponents = ComponentRegistry.generateSnapshotData();
         
         if (registeredComponents.length > 0) {
-            console.log('🎯 Usando componentes del registro:', registeredComponents);
+            console.log('🎯 Using registered components:', registeredComponents);
             return registeredComponents.map(comp => ({
                 id: comp.id,
                 name: comp.name,
@@ -97,7 +97,7 @@ export class CanvasExtractor {
         }
         
         // Fallback: detección automática
-        console.log('🔍 No hay componentes registrados, detectando automáticamente...');
+        console.log('🔍 No registered components, auto-detecting...');
         const components: ReactComponentInfo[] = [];
         const canvasElement = this.canvasElement;
 
@@ -109,7 +109,7 @@ export class CanvasExtractor {
             const componentName = el.getAttribute('componentName') || el.dataset.reactComponent || 'UnknownComponent';
             const componentId = el.dataset.componentId || el.id || `component-${index}`;
             
-            console.log(`🔍 Detectado componente: ${componentName} (ID: ${componentId})`);
+            console.log(`🔍 Detected component: ${componentName} (ID: ${componentId})`);
             
             components.push({
                 id: componentId,
@@ -150,7 +150,7 @@ export class CanvasExtractor {
             });
         });
 
-        console.log('🔍 Componentes React detectados automáticamente:', components);
+        console.log('🔍 React components auto-detected:', components);
         return components;
     }
 
