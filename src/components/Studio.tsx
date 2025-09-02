@@ -13,7 +13,19 @@ import Toolbar from './Toolbar';
 import Canvas from './Canvas';
 import Properties from './Properties';
 
-// Services import
+// New registry system imports
+import { 
+    saveElement, 
+    saveProject, 
+    loadAllElements,
+    clearAllSavedData,
+    type SavedElement,
+    type SavedProject,
+    componentRegistry,
+    isComponentInRegistry
+} from '../services/ComponentRegistry.v2';
+
+// Legacy services import (for backward compatibility)
 import { ComponentRegistry } from '../services/ComponentRegistry';
 import { getComponentConfig, getComponentImportPath, getDefaultSize, getDefaultProps } from '../config/ComponentsConfig'; 
 
@@ -186,6 +198,120 @@ export default function Studio({ getData, setGetData, styles, setStyles }: {
         console.log('📡 [STUDIO] Elements synced:', syncData.elements.length, 'elements');
     }, [elements, canvasWidth, canvasHeight, zoom]);
 
+    // Enhanced save project function using new registry system
+    const saveProjectToRegistry = useCallback(() => {
+        try {
+            const canvas = canvasRef.current;
+            if (!canvas) {
+                console.error('Canvas not found');
+                return;
+            }
+
+            const canvasElements = canvas.querySelectorAll('.moveable-element') as NodeListOf<HTMLElement>;
+            const savedElements: SavedElement[] = [];
+
+            canvasElements.forEach((htmlElement) => {
+                const elementData = elements.find(el => el.element === htmlElement);
+                if (!elementData) return;
+
+                const computedStyle = window.getComputedStyle(htmlElement);
+                const elementRect = htmlElement.getBoundingClientRect();
+                const canvasRect = canvas.getBoundingClientRect();
+                
+                const x = (elementRect.left - canvasRect.left) / zoom;
+                const y = (elementRect.top - canvasRect.top) / zoom;
+                const width = elementRect.width / zoom;
+                const height = elementRect.height / zoom;
+
+                // Handle different element types
+                if (htmlElement.hasAttribute('data-image-element')) {
+                    // Image elements - save base64 data
+                    const img = htmlElement.querySelector('img');
+                    const savedElement: SavedElement = {
+                        id: elementData.id,
+                        name: 'Prism', // Default component for images
+                        props: {
+                            imageData: img?.src || '',
+                            fileName: elementData.name.replace('Image: ', ''),
+                            isImageElement: true
+                        },
+                        position: { x, y, width, height },
+                        styles: {
+                            cursor: 'move',
+                            userSelect: 'none',
+                            zIndex: elementData.zIndex
+                        },
+                        version: 1,
+                        timestamp: Date.now()
+                    };
+                    savedElements.push(savedElement);
+                    saveElement(savedElement);
+                } else if (htmlElement.hasAttribute('data-react-component')) {
+                    // React components
+                    const componentName = htmlElement.getAttribute('data-react-component');
+                    if (componentName) {
+                        if (isComponentInRegistry(componentName)) {
+                            const savedElement: SavedElement = {
+                                id: elementData.id,
+                                name: componentName as keyof typeof componentRegistry,
+                                props: getDefaultProps(componentName), // Could be enhanced to get actual props
+                                position: { x, y, width, height },
+                                styles: {
+                                    cursor: 'move',
+                                    userSelect: 'none',
+                                    overflow: 'hidden',
+                                    zIndex: elementData.zIndex
+                                },
+                                version: 1,
+                                timestamp: Date.now()
+                            };
+                            savedElements.push(savedElement);
+                            saveElement(savedElement);
+                            console.log('💾 React component saved to registry:', componentName);
+                        } else {
+                            console.warn('⚠️ React component not in registry, skipping:', componentName);
+                        }
+                    }
+                } else {
+                    // Regular HTML elements - could be enhanced to save as components
+                    console.log('📝 Regular HTML element detected, could be enhanced for registry saving:', elementData.type);
+                }
+            });
+
+            // Save complete project
+            const project: SavedProject = {
+                id: `project_${Date.now()}`,
+                name: `Project ${new Date().toISOString().split('T')[0]}`,
+                elements: savedElements,
+                canvas: {
+                    width: canvasWidth,
+                    height: canvasHeight
+                },
+                version: 1,
+                timestamp: Date.now()
+            };
+
+            saveProject(project);
+            console.log('💾 Project saved to new registry system:', project.name, savedElements.length, 'elements');
+
+        } catch (error) {
+            console.error('❌ Error saving project to registry:', error);
+        }
+    }, [elements, canvasWidth, canvasHeight, zoom]);
+
+    // Clear all saved data function
+    const clearSavedData = useCallback(() => {
+        try {
+            clearAllSavedData();
+            localStorage.removeItem('studioCanvasData');
+            console.log('🧹 All saved data cleared');
+            alert('All saved data has been cleared');
+        } catch (error) {
+            console.error('❌ Error clearing saved data:', error);
+            alert('Error clearing saved data');
+        }
+    }, []);
+
     // Sincronizar elementos cuando cambien
     useEffect(() => {
         const syncTimer = setTimeout(() => {
@@ -255,8 +381,101 @@ export default function Studio({ getData, setGetData, styles, setStyles }: {
         }
     }, [elements, isMultiSelect, selectedTargets, setGetData]);
 
+    // Function to update element in registry when it's modified
+    const updateElementInRegistry = useCallback((element: HTMLElement) => {
+        const elementId = element.getAttribute('data-element-id') || element.id;
+        const elementData = elements.find(el => el.id === elementId);
+        
+        if (!elementData) return;
+        
+        // Only update registry elements (React components and images)
+        if (element.hasAttribute('data-react-component') || element.hasAttribute('data-image-element')) {
+            const computedStyle = window.getComputedStyle(element);
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            
+            const elementRect = element.getBoundingClientRect();
+            const canvasRect = canvas.getBoundingClientRect();
+            
+            const x = (elementRect.left - canvasRect.left) / zoom;
+            const y = (elementRect.top - canvasRect.top) / zoom;
+            const width = elementRect.width / zoom;
+            const height = elementRect.height / zoom;
+            
+            // Parse transform for rotation and scale
+            const transform = computedStyle.transform;
+            let rotation = 0;
+            let scale = 1;
+            
+            if (transform && transform !== 'none') {
+                const matrix = transform.match(/matrix\(([^)]+)\)/);
+                if (matrix) {
+                    const values = matrix[1].split(',').map(v => parseFloat(v.trim()));
+                    if (values.length >= 6) {
+                        rotation = Math.round(Math.atan2(values[1], values[0]) * (180 / Math.PI));
+                        scale = Math.sqrt(values[0] * values[0] + values[1] * values[1]);
+                    }
+                }
+            }
+            
+            if (element.hasAttribute('data-image-element')) {
+                // Update image element
+                const img = element.querySelector('img');
+                const savedElement: SavedElement = {
+                    id: elementData.id,
+                    name: 'Prism',
+                    props: {
+                        imageData: img?.src || '',
+                        fileName: elementData.name.replace('Image: ', ''),
+                        isImageElement: true
+                    },
+                    position: { 
+                        x, y, width, height, 
+                        rotation: rotation !== 0 ? rotation : undefined,
+                        scale: scale !== 1 ? scale : undefined
+                    },
+                    styles: {
+                        cursor: 'move',
+                        userSelect: 'none',
+                        zIndex: elementData.zIndex
+                    },
+                    version: 1,
+                    timestamp: Date.now()
+                };
+                saveElement(savedElement);
+            } else if (element.hasAttribute('data-react-component')) {
+                // Update React component
+                const componentName = element.getAttribute('data-react-component');
+                if (componentName && isComponentInRegistry(componentName)) {
+                    const savedElement: SavedElement = {
+                        id: elementData.id,
+                        name: componentName as keyof typeof componentRegistry,
+                        props: getDefaultProps(componentName),
+                        position: { 
+                            x, y, width, height,
+                            rotation: rotation !== 0 ? rotation : undefined,
+                            scale: scale !== 1 ? scale : undefined
+                        },
+                        styles: {
+                            cursor: 'move',
+                            userSelect: 'none',
+                            overflow: 'hidden',
+                            zIndex: elementData.zIndex
+                        },
+                        version: 1,
+                        timestamp: Date.now()
+                    };
+                    saveElement(savedElement);
+                }
+            }
+        }
+    }, [elements, zoom]);
+
     const handleGetTargetStyles = (element: HTMLElement | SVGElement) => {
-        if (element) {
+        if (element instanceof HTMLElement) {
+            // Update registry when element is modified
+            updateElementInRegistry(element);
+            
             const computedStyles = window.getComputedStyle(element);
             setStyles?.([
                 computedStyles.width, 
@@ -268,6 +487,9 @@ export default function Studio({ getData, setGetData, styles, setStyles }: {
 
     // Update current styles for properties panel
     const updateCurrentStyles = (element: HTMLElement) => {
+        // Update registry when styles change
+        updateElementInRegistry(element);
+        
         const computedStyles = window.getComputedStyle(element);
         setCurrentStyles({
             width: computedStyles.width,
@@ -362,13 +584,21 @@ export default function Studio({ getData, setGetData, styles, setStyles }: {
         setNextZIndex(prev => prev + 1);
         updateCurrentStyles(element);
     };
+    // Updated React component addition function with new registry system
     const addReactElement = async (Component: React.ComponentType<any>, componentName?: string) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        // Obtener configuración del componente
+        // Get component configuration
         const config = getComponentConfig(componentName || 'Unknown');
         const finalComponentName = componentName || Component.displayName || Component.name || 'UnknownComponent';
+        
+        // Check if component exists in new registry
+        if (!isComponentInRegistry(finalComponentName)) {
+            console.warn(`⚠️ Component ${finalComponentName} not found in new registry, falling back to legacy system`);
+            // Continue with legacy behavior for backward compatibility
+        }
+        
         const defaultSize = getDefaultSize(finalComponentName);
         const defaultProps = getDefaultProps(finalComponentName);
         const importPath = getComponentImportPath(finalComponentName);
@@ -381,7 +611,7 @@ export default function Studio({ getData, setGetData, styles, setStyles }: {
         element.setAttribute('data-react-component', finalComponentName);
         element.setAttribute('componentName', finalComponentName);
         
-        // Base styles con tamaño desde la configuración
+        // Base styles with size from configuration
         let baseStyles = 'position: absolute; cursor: move; user-select: none; ';
         let elementName = config?.displayName || finalComponentName;
         
@@ -405,7 +635,39 @@ export default function Studio({ getData, setGetData, styles, setStyles }: {
         
         canvas.appendChild(element);
 
-        // Registrar el componente en el sistema
+        // Save to new registry system (only if component exists in registry)
+        if (isComponentInRegistry(finalComponentName)) {
+            const savedElement: SavedElement = {
+                id: id,
+                name: finalComponentName as keyof typeof componentRegistry,
+                props: defaultProps,
+                position: {
+                    x: x,
+                    y: y,
+                    width: defaultSize.width,
+                    height: defaultSize.height,
+                },
+                styles: {
+                    cursor: 'move',
+                    userSelect: 'none',
+                    zIndex: currentZIndex,
+                    overflow: 'hidden'
+                },
+                version: 1,
+                timestamp: Date.now()
+            };
+
+            try {
+                saveElement(savedElement);
+                console.log(`💾 React component saved to new registry: ${elementName}`, savedElement);
+            } catch (error) {
+                console.error('❌ Error saving React component to registry:', error);
+            }
+        } else {
+            console.log(`ℹ️ Component ${finalComponentName} not in registry, skipping registry save`);
+        }
+
+        // Register component in legacy system for backward compatibility
         try {
             ComponentRegistry.registerComponent({
                 id: id,
@@ -443,18 +705,19 @@ export default function Studio({ getData, setGetData, styles, setStyles }: {
         updateCurrentStyles(element);
     };
 
-    // Image element creation function
+    // Image element creation function with new registry system
     const addImageElement = useCallback((imageData: string, fileName: string) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        const elementId = `element_${Date.now()}`;
+        const elementId = `image_element_${Date.now()}`;
         
         // Create image element
         const element = document.createElement('div');
         element.id = elementId;
         element.className = 'moveable-element target absolute';
         element.setAttribute('data-element-id', elementId);
+        element.setAttribute('data-image-element', 'true');
         
         const img = document.createElement('img');
         img.src = imageData;
@@ -466,6 +729,33 @@ export default function Studio({ getData, setGetData, styles, setStyles }: {
         element.style.cssText = baseStyles;
         
         canvas.appendChild(element);
+
+        // Create saved element data for the new registry system
+        const savedElement: SavedElement = {
+            id: elementId,
+            name: 'Prism', // Using a default component for images, could be extended
+            props: {
+                imageData: imageData,
+                fileName: fileName,
+                isImageElement: true
+            },
+            position: {
+                x: 50 + Math.random() * 200,
+                y: 50 + Math.random() * 200,
+                width: 200,
+                height: 200,
+            },
+            styles: {
+                cursor: 'move',
+                userSelect: 'none',
+                zIndex: currentZIndex
+            },
+            version: 1,
+            timestamp: Date.now()
+        };
+
+        // Save to localStorage using new system
+        saveElement(savedElement);
 
         const elementData: ElementData = {
             id: elementId,
@@ -484,7 +774,7 @@ export default function Studio({ getData, setGetData, styles, setStyles }: {
         setNextZIndex(prev => prev + 1);
         updateCurrentStyles(element);
         
-        console.log('🖼️ Image element added:', fileName);
+        console.log('🖼️ Image element added and saved to registry:', fileName);
     }, [nextZIndex, updateCurrentStyles]);
     
     // Multi-selection actions
@@ -774,123 +1064,280 @@ export default function Studio({ getData, setGetData, styles, setStyles }: {
         }
     };
 
-    // Load data from localStorage function
+    // Load data from localStorage function with new registry system
     const loadFromLocalStorage = useCallback(() => {
         try {
-            const savedData = localStorage.getItem('studioCanvasData');
-            if (!savedData) {
-                alert('No saved data found in localStorage');
-                return;
-            }
+            // Try to load from new registry system first
+            const savedElements = loadAllElements();
+            
+            if (savedElements.length > 0) {
+                console.log('📂 Loading data from new registry system:', savedElements);
+                
+                // Clear current canvas
+                const canvas = canvasRef.current;
+                if (!canvas) {
+                    console.error('Canvas not found');
+                    return;
+                }
 
-            const data = JSON.parse(savedData);
-            console.log('📂 Loading data from localStorage:', data);
+                // Clear existing elements
+                canvas.innerHTML = '';
+                setElements([]);
+                setTarget(null);
+                setSelectedElement(null);
+                setSelectedTargets([]);
 
-            // Clear current canvas
-            const canvas = canvasRef.current;
-            if (!canvas) {
-                console.error('Canvas not found');
-                return;
-            }
-
-            // Clear existing elements
-            canvas.innerHTML = '';
-            setElements([]);
-            setTarget(null);
-            setSelectedElement(null);
-            setSelectedTargets([]);
-
-            // Restore canvas settings
-            if (data.canvasSize) {
-                setCanvasWidth(data.canvasSize.width);
-                setCanvasHeight(data.canvasSize.height);
-            }
-            if (data.zoom) {
-                setZoom(data.zoom);
-            }
-
-            // Recreate elements from saved data
-            if (data.elements && Array.isArray(data.elements)) {
+                // Recreate elements using the new system
                 const newElements: ElementData[] = [];
                 let maxZIndex = 0;
 
-                data.elements.forEach((elementData: any, index: number) => {
-                    const element = document.createElement('div');
-                    element.id = elementData.id || `element_${Date.now()}_${index}`;
-                    element.className = 'moveable-element target absolute';
-                    element.setAttribute('data-element-id', element.id);
-
-                    // Apply position and transform
-                    element.style.position = 'absolute';
-                    element.style.cursor = 'move';
-                    element.style.userSelect = 'none';
-                    element.style.left = `${elementData.x || 0}px`;
-                    element.style.top = `${elementData.y || 0}px`;
-                    element.style.width = `${elementData.width || 100}px`;
-                    element.style.height = `${elementData.height || 100}px`;
-                    element.style.transform = elementData.transform || '';
-                    element.style.zIndex = elementData.zIndex?.toString() || '1';
-
-                    // Apply styles
-                    if (elementData.backgroundColor) element.style.backgroundColor = elementData.backgroundColor;
-                    if (elementData.borderRadius) element.style.borderRadius = elementData.borderRadius;
-                    if (elementData.border) element.style.border = elementData.border;
-                    if (elementData.boxShadow) element.style.boxShadow = elementData.boxShadow;
-                    if (elementData.opacity) element.style.opacity = elementData.opacity;
-
-                    // Set content based on type
-                    if (elementData.type === 'text' || elementData.type === 'p' || elementData.type === 'h1') {
-                        element.textContent = elementData.content || 'Text Element';
-                        element.contentEditable = 'true';
+                savedElements.forEach((savedElement) => {
+                    // Check if this is an image element (special handling)
+                    if (savedElement.props.isImageElement && savedElement.props.imageData) {
+                        const element = document.createElement('div');
+                        element.id = savedElement.id;
+                        element.className = 'moveable-element target absolute';
+                        element.setAttribute('data-element-id', savedElement.id);
+                        element.setAttribute('data-image-element', 'true');
                         
-                        if (elementData.fontFamily) element.style.fontFamily = elementData.fontFamily;
-                        if (elementData.fontSize) element.style.fontSize = `${elementData.fontSize}px`;
-                        if (elementData.fontWeight) element.style.fontWeight = elementData.fontWeight;
-                        if (elementData.color) element.style.color = elementData.color;
-                        if (elementData.textAlign) element.style.textAlign = elementData.textAlign;
-                    } else if (elementData.type === 'rectangle') {
-                        element.style.backgroundColor = elementData.backgroundColor || '#3b82f6';
-                        element.style.borderRadius = elementData.borderRadius || '4px';
-                    } else if (elementData.type === 'circle') {
-                        element.style.backgroundColor = elementData.backgroundColor || '#ef4444';
-                        element.style.borderRadius = '50%';
-                    } else if (elementData.type === 'div') {
-                        // Check if this is an image element
-                        if (elementData.name && elementData.name.startsWith('Image:')) {
-                            // Try to recreate image if we have the source
-                            const img = document.createElement('img');
-                            img.style.cssText = 'width: 100%; height: 100%; object-fit: contain; pointer-events: none;';
-                            // Note: We can't restore the image source from localStorage without the base64 data
-                            img.alt = 'Restored Image';
-                            element.appendChild(img);
-                        } else {
-                            element.textContent = 'DIV';
-                            element.style.backgroundColor = elementData.backgroundColor || 'rgba(59, 130, 246, 0.3)';
-                            element.style.display = 'flex';
-                            element.style.alignItems = 'center';
-                            element.style.justifyContent = 'center';
-                        }
+                        // Recreate image
+                        const img = document.createElement('img');
+                        img.src = savedElement.props.imageData;
+                        img.style.cssText = 'width: 100%; height: 100%; object-fit: contain; pointer-events: none;';
+                        element.appendChild(img);
+                        
+                        // Apply saved position and styles
+                        element.style.cssText = `
+                            position: absolute;
+                            left: ${savedElement.position.x}px;
+                            top: ${savedElement.position.y}px;
+                            width: ${savedElement.position.width}px;
+                            height: ${savedElement.position.height}px;
+                            cursor: move;
+                            user-select: none;
+                            z-index: ${savedElement.styles?.zIndex || 1};
+                            ${savedElement.position.rotation ? `transform: rotate(${savedElement.position.rotation}deg);` : ''}
+                            ${savedElement.position.scale ? `transform: ${savedElement.position.rotation ? `rotate(${savedElement.position.rotation}deg) ` : ''}scale(${savedElement.position.scale});` : ''}
+                        `;
+                        
+                        canvas.appendChild(element);
+                        
+                        const elementData: ElementData = {
+                            id: savedElement.id,
+                            type: 'div' as any,
+                            element,
+                            isLocked: false,
+                            isVisible: true,
+                            zIndex: savedElement.styles?.zIndex || 1,
+                            name: `Image: ${savedElement.props.fileName || 'Restored Image'}`
+                        };
+                        
+                        newElements.push(elementData);
+                        maxZIndex = Math.max(maxZIndex, elementData.zIndex);
+                    } else {
+                        // For React components, use the RecreateProject system
+                        // This will be handled by rendering the RecreateProject component
+                        console.log('🔄 Found React component to recreate:', savedElement.name);
                     }
-
-                    canvas.appendChild(element);
-
-                    const elementInfo: ElementData = {
-                        id: element.id,
-                        type: elementData.type || 'div',
-                        element: element,
-                        isLocked: elementData.isLocked || false,
-                        isVisible: elementData.isVisible !== false,
-                        zIndex: elementData.zIndex || (index + 1),
-                        name: elementData.name || `Element ${index + 1}`
-                    };
-
-                    newElements.push(elementInfo);
-                    maxZIndex = Math.max(maxZIndex, elementInfo.zIndex);
                 });
 
                 setElements(newElements);
                 setNextZIndex(maxZIndex + 1);
-                console.log(`✅ ${newElements.length} elements loaded from localStorage`);
+                console.log(`✅ ${newElements.length} elements loaded from new registry system`);
+                
+                // If we have React components, we need to recreate them as moveable elements
+                const reactComponents = savedElements.filter(el => !el.props.isImageElement);
+                if (reactComponents.length > 0) {
+                    console.log('🔄 Recreating React components as moveable elements:', reactComponents.length);
+                    
+                    for (const savedComponent of reactComponents) {
+                        if (isComponentInRegistry(savedComponent.name)) {
+                            const Component = componentRegistry[savedComponent.name];
+                            
+                            // Create moveable wrapper element
+                            const element = document.createElement('div');
+                            element.id = savedComponent.id;
+                            element.className = 'moveable-element target absolute';
+                            element.setAttribute('data-element-id', savedComponent.id);
+                            element.setAttribute('data-react-component', savedComponent.name);
+                            element.setAttribute('componentName', savedComponent.name);
+                            
+                            // Apply saved position and styles
+                            element.style.cssText = `
+                                position: absolute;
+                                left: ${savedComponent.position.x}px;
+                                top: ${savedComponent.position.y}px;
+                                width: ${savedComponent.position.width}px;
+                                height: ${savedComponent.position.height}px;
+                                cursor: move;
+                                user-select: none;
+                                overflow: hidden;
+                                z-index: ${savedComponent.styles?.zIndex || 1};
+                                ${savedComponent.position.rotation ? `transform: rotate(${savedComponent.position.rotation}deg);` : ''}
+                                ${savedComponent.position.scale ? `transform: ${savedComponent.position.rotation ? `rotate(${savedComponent.position.rotation}deg) ` : ''}scale(${savedComponent.position.scale});` : ''}
+                            `;
+                            
+                            // Create React wrapper inside the moveable element
+                            const reactWrapper = document.createElement('div');
+                            reactWrapper.style.cssText = 'width: 100%; height: 100%; pointer-events: none;';
+                            element.appendChild(reactWrapper);
+                            
+                            // Render React component
+                            const root = ReactDOM.createRoot(reactWrapper);
+                            root.render(<Component {...savedComponent.props} />);
+                            
+                            canvas.appendChild(element);
+                            
+                            // Register in legacy system for backward compatibility
+                            try {
+                                ComponentRegistry.registerComponent({
+                                    id: savedComponent.id,
+                                    name: savedComponent.name,
+                                    importPath: `@/components/${savedComponent.name}`,
+                                    element: element,
+                                    props: savedComponent.props
+                                });
+                            } catch (error) {
+                                console.error('❌ Error registering recreated component:', error);
+                            }
+                            
+                            // Add to elements array so it appears in layers and is selectable
+                            const elementData: ElementData = {
+                                id: savedComponent.id,
+                                type: 'react-component',
+                                element,
+                                isLocked: false,
+                                isVisible: true,
+                                zIndex: savedComponent.styles?.zIndex || 1,
+                                name: savedComponent.name
+                            };
+                            
+                            newElements.push(elementData);
+                            maxZIndex = Math.max(maxZIndex, elementData.zIndex);
+                            
+                            console.log('✅ React component recreated as moveable element:', savedComponent.name);
+                        } else {
+                            console.warn('⚠️ Component not found in registry:', savedComponent.name);
+                        }
+                    }
+                }
+                
+            } else {
+                // Fallback to old localStorage system
+                console.log('📂 No new registry data found, trying legacy localStorage...');
+                
+                const savedData = localStorage.getItem('studioCanvasData');
+                if (!savedData) {
+                    alert('No saved data found in localStorage');
+                    return;
+                }
+
+                const data = JSON.parse(savedData);
+                console.log('📂 Loading data from legacy localStorage:', data);
+
+                // Clear current canvas
+                const canvas = canvasRef.current;
+                if (!canvas) {
+                    console.error('Canvas not found');
+                    return;
+                }
+
+                // Clear existing elements
+                canvas.innerHTML = '';
+                setElements([]);
+                setTarget(null);
+                setSelectedElement(null);
+                setSelectedTargets([]);
+
+                // Restore canvas settings
+                if (data.canvasSize) {
+                    setCanvasWidth(data.canvasSize.width);
+                    setCanvasHeight(data.canvasSize.height);
+                }
+                if (data.zoom) {
+                    setZoom(data.zoom);
+                }
+
+                // Legacy element recreation (keeping existing code)
+                if (data.elements && Array.isArray(data.elements)) {
+                    const newElements: ElementData[] = [];
+                    let maxZIndex = 0;
+
+                    data.elements.forEach((elementData: any, index: number) => {
+                        const element = document.createElement('div');
+                        element.id = elementData.id || `element_${Date.now()}_${index}`;
+                        element.className = 'moveable-element target absolute';
+                        element.setAttribute('data-element-id', element.id);
+
+                        // Apply position and transform
+                        element.style.position = 'absolute';
+                        element.style.cursor = 'move';
+                        element.style.userSelect = 'none';
+                        element.style.left = `${elementData.x || 0}px`;
+                        element.style.top = `${elementData.y || 0}px`;
+                        element.style.width = `${elementData.width || 100}px`;
+                        element.style.height = `${elementData.height || 100}px`;
+                        element.style.transform = elementData.transform || '';
+                        element.style.zIndex = elementData.zIndex?.toString() || '1';
+
+                        // Apply styles
+                        if (elementData.backgroundColor) element.style.backgroundColor = elementData.backgroundColor;
+                        if (elementData.borderRadius) element.style.borderRadius = elementData.borderRadius;
+                        if (elementData.border) element.style.border = elementData.border;
+                        if (elementData.boxShadow) element.style.boxShadow = elementData.boxShadow;
+                        if (elementData.opacity) element.style.opacity = elementData.opacity;
+
+                        // Set content based on type
+                        if (elementData.type === 'text' || elementData.type === 'p' || elementData.type === 'h1') {
+                            element.textContent = elementData.content || 'Text Element';
+                            element.contentEditable = 'true';
+                            
+                            if (elementData.fontFamily) element.style.fontFamily = elementData.fontFamily;
+                            if (elementData.fontSize) element.style.fontSize = `${elementData.fontSize}px`;
+                            if (elementData.fontWeight) element.style.fontWeight = elementData.fontWeight;
+                            if (elementData.color) element.style.color = elementData.color;
+                            if (elementData.textAlign) element.style.textAlign = elementData.textAlign;
+                        } else if (elementData.type === 'rectangle') {
+                            element.style.backgroundColor = elementData.backgroundColor || '#3b82f6';
+                            element.style.borderRadius = elementData.borderRadius || '4px';
+                        } else if (elementData.type === 'circle') {
+                            element.style.backgroundColor = elementData.backgroundColor || '#ef4444';
+                            element.style.borderRadius = '50%';
+                        } else if (elementData.type === 'div') {
+                            if (elementData.name && elementData.name.startsWith('Image:')) {
+                                const img = document.createElement('img');
+                                img.style.cssText = 'width: 100%; height: 100%; object-fit: contain; pointer-events: none;';
+                                img.alt = 'Restored Image';
+                                element.appendChild(img);
+                            } else {
+                                element.textContent = 'DIV';
+                                element.style.backgroundColor = elementData.backgroundColor || 'rgba(59, 130, 246, 0.3)';
+                                element.style.display = 'flex';
+                                element.style.alignItems = 'center';
+                                element.style.justifyContent = 'center';
+                            }
+                        }
+
+                        canvas.appendChild(element);
+
+                        const elementInfo: ElementData = {
+                            id: element.id,
+                            type: elementData.type || 'div',
+                            element: element,
+                            isLocked: elementData.isLocked || false,
+                            isVisible: elementData.isVisible !== false,
+                            zIndex: elementData.zIndex || (index + 1),
+                            name: elementData.name || `Element ${index + 1}`
+                        };
+
+                        newElements.push(elementInfo);
+                        maxZIndex = Math.max(maxZIndex, elementInfo.zIndex);
+                    });
+
+                    setElements(newElements);
+                    setNextZIndex(maxZIndex + 1);
+                    console.log(`✅ ${newElements.length} elements loaded from legacy localStorage`);
+                }
             }
 
             console.log('🎉 Data loaded successfully from localStorage');
@@ -977,6 +1424,8 @@ export default function Studio({ getData, setGetData, styles, setStyles }: {
                                 hasSelection={!!selectedElement || selectedTargets.length > 0}
                                 selectedTargets={selectedTargets}
                                 onLoadData={loadFromLocalStorage}
+                                onSaveProject={saveProjectToRegistry}
+                                onClearData={clearSavedData}
                             />
 
                             <Canvas

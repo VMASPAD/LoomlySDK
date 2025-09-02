@@ -13,7 +13,9 @@ import {
     Download,
     Save,
     RotateCcw,
-    FolderOpen
+    FolderOpen,
+    Database,
+    Trash
 } from 'lucide-react';
 
 interface MoveableSettings {
@@ -126,7 +128,7 @@ export default function Toolbar({
 
             {/* Element Actions */}
             <div className="flex items-center gap-2 mb-4">
-                <span className="text-sm font-medium text-gray-700">Actions:</span>
+       {/*          <span className="text-sm font-medium text-gray-700">Actions:</span> */}
                 <Button
                     variant="outline"
                     size="sm"
@@ -153,18 +155,15 @@ export default function Toolbar({
                 >
                     <X className="w-4 h-4 mr-1" />
                     Deselect
-                </Button>
-                
-                {/* Save System Buttons */}
+                </Button> 
                 <Button
                     variant="outline"
                     size="sm"
                     onClick={onSaveProject}
-                    className={`${hasUnsavedChanges ? 'bg-green-50 hover:bg-green-100 border-green-300' : 'bg-gray-50'}`}
-                    title={lastSaveTime ? `Last saved: ${lastSaveTime.toLocaleTimeString()}` : 'No saves yet'}
+                    className="bg-green-50 hover:bg-green-100 border-green-300 text-green-700"
                 >
                     <Save className="w-4 h-4 mr-1" />
-                    Save {hasUnsavedChanges ? '*' : ''}
+                    Save Project
                 </Button>
                 <Button
                     variant="outline"
@@ -172,8 +171,8 @@ export default function Toolbar({
                     onClick={onClearData}
                     className="bg-red-50 hover:bg-red-100 border-red-300 text-red-700"
                 >
-                    <RotateCcw className="w-4 h-4 mr-1" />
-                    Clear Data
+                    <Trash className="w-4 h-4 mr-1" />
+                    Clear All Data
                 </Button>
                 <Button
                     variant="outline"
