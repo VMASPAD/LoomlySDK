@@ -241,6 +241,9 @@ src/render/
 
 - **[Save System Documentation](SAVE_SYSTEM.md)**: Comprehensive guide to the localStorage-based project persistence system, including technical details, usage instructions, and troubleshooting.
 
+
+<img src="https://view-stats-backend.hermesbackend.xyz/image?repository=https://github.com/VMASPAD/LoomlySDK&color=7DDA58"/>
+
 ## 🤝 Contributing
 
 1. Fork the project
