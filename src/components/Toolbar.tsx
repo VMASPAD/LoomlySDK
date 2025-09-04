@@ -96,7 +96,7 @@ export default function Toolbar({
             <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold">LoomlySDK</h2>
                 <img src='/icon.png' className="w-8 h-8" />
-                <div className="flex items-center gap-2">
+                {/* <div className="flex items-center gap-2">
                     <Button
                         variant="outline"
                         size="sm"
@@ -123,7 +123,7 @@ export default function Toolbar({
                     >
                         Reset
                     </Button>
-                </div>
+                </div> */}
             </div>
 
             {/* Element Actions */}

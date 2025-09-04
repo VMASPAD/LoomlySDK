@@ -77,28 +77,35 @@ const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
     onCurrentStylesUpdate
 }, ref) => {
     return (
-        <div className="flex-1 flex items-center justify-center p-4 overflow-auto bg-transparent"
+        <div className="flex-1 flex p-4 overflow-auto bg-transparent"
              style={{
                  background: 'transparent',
                  backgroundImage: `
                      radial-gradient(circle at 1px 1px, rgba(0,0,0,0.1) 1px, transparent 0)
                  `,
-                 backgroundSize: '20px 20px'
+                 backgroundSize: '20px 20px',
+                 minWidth: 0, // Permite que el div se encoja
+                 minHeight: 0,  // Permite que el div se encoja
+                 alignItems: 'center', // Centra verticalmente cuando cabe
+                 justifyContent: 'center' // Centra horizontalmente cuando cabe
              }}>
             <div 
                 ref={ref}
                 className="bg-transparent"
                 style={{ 
-                    width: canvasWidth, 
-                    height: canvasHeight,
-                    transform: `scale(${zoom})`,
+                    width: canvasWidth * zoom, 
+                    height: canvasHeight * zoom,
+                    minWidth: canvasWidth * zoom,
+                    minHeight: canvasHeight * zoom,
                     transformOrigin: 'top left',
                     position: 'relative',
                     backgroundColor: 'transparent',
-                    overflow: 'hidden',
+                    overflow: 'visible', // Cambiado de hidden a visible
                     boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
                     borderRadius: '8px',
-                    border: '1px solid #d1d5dc'
+                    border: '1px solid #000000',
+                    margin: '20px', // Margen para separar de los paneles
+                    flexShrink: 0 // Evita que se encoja
                 }}
                 id="canvas"
             >
@@ -151,6 +158,8 @@ const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
                             right: canvasWidth,
                             bottom: canvasHeight,
                         }}
+                        /* Boundary enforcement */
+                        checkInput={false}
 
                         /* Drag Events */
                         onDrag={({ target, transform }: OnDrag) => {
@@ -164,8 +173,30 @@ const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
                         /* Resize Events */
                         onResize={({ target, width, height, delta }: OnResize) => {
                             if (target && target instanceof HTMLElement) {
-                                delta[0] && (target.style.width = `${width}px`);
-                                delta[1] && (target.style.height = `${height}px`);
+                                // Get current position
+                                const computedStyle = getComputedStyle(target);
+                                const transform = computedStyle.transform;
+                                let left = 0, top = 0;
+                                
+                                if (transform && transform !== 'none') {
+                                    const matrix = transform.match(/matrix.*\((.+)\)/);
+                                    if (matrix) {
+                                        const values = matrix[1].split(', ');
+                                        left = parseFloat(values[4]) || 0;
+                                        top = parseFloat(values[5]) || 0;
+                                    }
+                                }
+                                
+                                // Ensure element doesn't exceed canvas boundaries
+                                const maxWidth = canvasWidth - left;
+                                const maxHeight = canvasHeight - top;
+                                
+                                const finalWidth = Math.min(width, maxWidth);
+                                const finalHeight = Math.min(height, maxHeight);
+                                
+                                if (delta[0]) target.style.width = `${finalWidth}px`;
+                                if (delta[1]) target.style.height = `${finalHeight}px`;
+                                
                                 onTargetStylesChange(target);
                                 onCurrentStylesUpdate(target);
                             }
@@ -212,7 +243,6 @@ const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({
                             }
                         }}
 
-                        checkInput={false} 
                     />
                 )}
 
