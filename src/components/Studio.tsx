@@ -273,10 +273,44 @@ export default function Studio({ getData, setGetData, styles, setStyles }: {
                         }
                     }
                 } else {
-                    // Regular HTML elements - save to localStorage as well
+                    // Regular HTML elements - save to BOTH localStorage AND registry
                     console.log('📝 Regular HTML element detected:', elementData.type);
                     
-                    // Add to localStorage data structure
+                    // First, create SavedElement for the registry system
+                    const savedElement: SavedElement = {
+                        id: elementData.id,
+                        name: 'Prism', // Use Prism as generic component for basic elements
+                        props: {
+                            elementType: elementData.type,
+                            content: htmlElement.textContent || '',
+                            isBasicElement: true,
+                            styles: {
+                                backgroundColor: computedStyle.backgroundColor,
+                                borderRadius: computedStyle.borderRadius,
+                                color: computedStyle.color,
+                                fontSize: computedStyle.fontSize,
+                                fontFamily: computedStyle.fontFamily,
+                                fontWeight: computedStyle.fontWeight,
+                                textAlign: computedStyle.textAlign,
+                                opacity: computedStyle.opacity,
+                                transform: computedStyle.transform
+                            }
+                        },
+                        position: { x, y, width, height },
+                        styles: {
+                            cursor: 'move',
+                            userSelect: 'none',
+                            zIndex: elementData.zIndex
+                        },
+                        version: 1,
+                        timestamp: Date.now()
+                    };
+                    
+                    // Save to registry system
+                    savedElements.push(savedElement);
+                    saveElement(savedElement);
+                    
+                    // Also save to localStorage for backward compatibility
                     const elementForLocalStorage = {
                         id: elementData.id,
                         type: elementData.type,
@@ -286,17 +320,15 @@ export default function Studio({ getData, setGetData, styles, setStyles }: {
                         isLocked: elementData.isLocked,
                         isVisible: elementData.isVisible,
                         content: htmlElement.textContent || '',
-                        styles: {
-                            backgroundColor: computedStyle.backgroundColor,
-                            borderRadius: computedStyle.borderRadius,
-                            color: computedStyle.color,
-                            fontSize: computedStyle.fontSize,
-                            fontFamily: computedStyle.fontFamily,
-                            fontWeight: computedStyle.fontWeight,
-                            textAlign: computedStyle.textAlign,
-                            opacity: computedStyle.opacity,
-                            transform: computedStyle.transform
-                        }
+                        backgroundColor: computedStyle.backgroundColor !== 'rgba(0, 0, 0, 0)' ? computedStyle.backgroundColor : undefined,
+                        borderRadius: computedStyle.borderRadius !== '0px' ? computedStyle.borderRadius : undefined,
+                        color: computedStyle.color,
+                        fontSize: computedStyle.fontSize,
+                        fontFamily: computedStyle.fontFamily,
+                        fontWeight: computedStyle.fontWeight,
+                        textAlign: computedStyle.textAlign,
+                        opacity: computedStyle.opacity !== '1' ? computedStyle.opacity : undefined,
+                        transform: computedStyle.transform
                     };
                     
                     // Get current localStorage data
@@ -319,7 +351,7 @@ export default function Studio({ getData, setGetData, styles, setStyles }: {
                         timestamp: Date.now()
                     }));
                     
-                    console.log('💾 Basic element saved to localStorage:', elementData.type, elementData.name);
+                    console.log('💾 Basic element saved to BOTH registry and localStorage:', elementData.type, elementData.name);
                 }
             });
 
@@ -1179,6 +1211,67 @@ export default function Studio({ getData, setGetData, styles, setStyles }: {
                         
                         newElements.push(elementData);
                         maxZIndex = Math.max(maxZIndex, elementData.zIndex);
+                    } else if (savedElement.props.isBasicElement) {
+                        // Basic HTML elements (rectangle, circle, text, etc.)
+                        const element = document.createElement('div');
+                        element.id = savedElement.id;
+                        element.className = 'moveable-element target absolute';
+                        element.setAttribute('data-element-id', savedElement.id);
+                        
+                        // Apply saved position
+                        element.style.cssText = `
+                            position: absolute;
+                            left: ${savedElement.position.x}px;
+                            top: ${savedElement.position.y}px;
+                            width: ${savedElement.position.width}px;
+                            height: ${savedElement.position.height}px;
+                            cursor: move;
+                            user-select: none;
+                            z-index: ${savedElement.styles?.zIndex || 1};
+                        `;
+                        
+                        // Apply element-specific styles and content
+                        const elementType = savedElement.props.elementType;
+                        const elementStyles = savedElement.props.styles || {};
+                        
+                        if (elementType === 'text' || elementType === 'p' || elementType === 'h1') {
+                            element.textContent = savedElement.props.content || 'Text Element';
+                            element.contentEditable = 'true';
+                            
+                            if (elementStyles.fontFamily) element.style.fontFamily = elementStyles.fontFamily;
+                            if (elementStyles.fontSize) element.style.fontSize = elementStyles.fontSize;
+                            if (elementStyles.fontWeight) element.style.fontWeight = elementStyles.fontWeight;
+                            if (elementStyles.color) element.style.color = elementStyles.color;
+                            if (elementStyles.textAlign) element.style.textAlign = elementStyles.textAlign;
+                        } else if (elementType === 'rectangle') {
+                            if (elementStyles.backgroundColor) element.style.backgroundColor = elementStyles.backgroundColor;
+                            if (elementStyles.borderRadius) element.style.borderRadius = elementStyles.borderRadius;
+                        } else if (elementType === 'circle') {
+                            if (elementStyles.backgroundColor) element.style.backgroundColor = elementStyles.backgroundColor;
+                            element.style.borderRadius = '50%';
+                        }
+                        
+                        // Apply common styles
+                        if (elementStyles.opacity && elementStyles.opacity !== '1') {
+                            element.style.opacity = elementStyles.opacity;
+                        }
+                        
+                        canvas.appendChild(element);
+                        
+                        const elementData: ElementData = {
+                            id: savedElement.id,
+                            type: elementType as any,
+                            element,
+                            isLocked: false,
+                            isVisible: true,
+                            zIndex: savedElement.styles?.zIndex || 1,
+                            name: `${elementType.charAt(0).toUpperCase() + elementType.slice(1)} Element`
+                        };
+                        
+                        newElements.push(elementData);
+                        maxZIndex = Math.max(maxZIndex, elementData.zIndex);
+                        
+                        console.log('✅ Basic element recreated:', elementType, savedElement.id);
                     } else {
                         // For React components, use the RecreateProject system
                         // This will be handled by rendering the RecreateProject component
@@ -1191,7 +1284,7 @@ export default function Studio({ getData, setGetData, styles, setStyles }: {
                 console.log(`✅ ${newElements.length} elements loaded from new registry system`);
                 
                 // If we have React components, we need to recreate them as moveable elements
-                const reactComponents = savedElements.filter(el => !el.props.isImageElement);
+                const reactComponents = savedElements.filter(el => !el.props.isImageElement && !el.props.isBasicElement);
                 if (reactComponents.length > 0) {
                     console.log('🔄 Recreating React components as moveable elements:', reactComponents.length);
                     
