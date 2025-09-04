@@ -273,8 +273,53 @@ export default function Studio({ getData, setGetData, styles, setStyles }: {
                         }
                     }
                 } else {
-                    // Regular HTML elements - could be enhanced to save as components
-                    console.log('📝 Regular HTML element detected, could be enhanced for registry saving:', elementData.type);
+                    // Regular HTML elements - save to localStorage as well
+                    console.log('📝 Regular HTML element detected:', elementData.type);
+                    
+                    // Add to localStorage data structure
+                    const elementForLocalStorage = {
+                        id: elementData.id,
+                        type: elementData.type,
+                        name: elementData.name,
+                        x, y, width, height,
+                        zIndex: elementData.zIndex,
+                        isLocked: elementData.isLocked,
+                        isVisible: elementData.isVisible,
+                        content: htmlElement.textContent || '',
+                        styles: {
+                            backgroundColor: computedStyle.backgroundColor,
+                            borderRadius: computedStyle.borderRadius,
+                            color: computedStyle.color,
+                            fontSize: computedStyle.fontSize,
+                            fontFamily: computedStyle.fontFamily,
+                            fontWeight: computedStyle.fontWeight,
+                            textAlign: computedStyle.textAlign,
+                            opacity: computedStyle.opacity,
+                            transform: computedStyle.transform
+                        }
+                    };
+                    
+                    // Get current localStorage data
+                    const existingData = localStorage.getItem('studioCanvasData');
+                    let localStorageProject = existingData ? JSON.parse(existingData) : { elements: [] };
+                    
+                    // Add or update element
+                    const existingIndex = localStorageProject.elements.findIndex((el: any) => el.id === elementData.id);
+                    if (existingIndex >= 0) {
+                        localStorageProject.elements[existingIndex] = elementForLocalStorage;
+                    } else {
+                        localStorageProject.elements.push(elementForLocalStorage);
+                    }
+                    
+                    // Update localStorage
+                    localStorage.setItem('studioCanvasData', JSON.stringify({
+                        ...localStorageProject,
+                        canvasSize: { width: canvasWidth, height: canvasHeight },
+                        zoom: zoom,
+                        timestamp: Date.now()
+                    }));
+                    
+                    console.log('💾 Basic element saved to localStorage:', elementData.type, elementData.name);
                 }
             });
 
